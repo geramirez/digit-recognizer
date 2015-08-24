@@ -10,8 +10,7 @@ for (i in 0:9) {
     pixels <- attributes[i+1,]
     pixels <- pixels[!is.na(pixels)]
     colheaders <- sapply(pixels, function(x) paste("pixel", as.character(x-1), sep=''))
-    curTrainingSet <- curTrainingSet[,colheaders]
-    
+    curTrainingSet <- curTrainingSet[,c("label", colheaders)]
     # model[i] = train an ML algorithm on this training set
 }
 
