@@ -28,6 +28,7 @@ from collections import namedtuple
 
 #-------------------------------------------------------------------------------
 
+TEST_DATA=1
 #
 #
 INPUT_DATA_PATH=os.path.expanduser('~/Desktop/DataScience/UW-DataScience-450/kaggle_comp')
@@ -38,8 +39,11 @@ OUTPUT_DATA_PATH=os.path.expanduser('~/Desktop/DataScience/UW-DataScience-450/ca
 TRAINING_FILE=os.path.join(INPUT_DATA_PATH, 'train.csv')
 TEST_FILE=os.path.join(INPUT_DATA_PATH, 'test.csv')
 
+if TEST_DATA:
+    OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'test_RS.csv')
+else:
+    OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'train_RS.csv')
 
-OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'train_FS.csv')
 
 #-------------------------------------------------------------------------------
 
@@ -59,7 +63,7 @@ def plot_image(image, title=''):
     plt.title(title)
     plt.matshow(image)
 
-def threshold_image(image, threshold=170):
+def threshold_image(image):
     """
     """
     image = image.astype('uint8')
@@ -130,9 +134,17 @@ def image_metrics(sample_image):
                                 cv2.CHAIN_APPROX_NONE)
     count = len(contours)
 
-    cnt = contours[0][0]
+    length = 0
+    for c in contours[0]:
+        #print('Length ', len(c), c)
+        if len(c) > length:
+            cnt = c
+            length = len(c)
+
     area = cv2.contourArea(cnt)
-    hull = cv2.convexHull(cnt)
+
+
+    hull = cv2.convexHull(contours[0][0])
     hull_area = cv2.contourArea(hull)
     if hull_area >= 0.001:
         solidity = float(area)/hull_area
@@ -148,14 +160,19 @@ def image_metrics(sample_image):
     string = 'Perimeter = %0.3f' % (perimeter)
     #print(string)
 
-    area = cv2.contourArea(cnt)
-    #print('Area = 0.3%f' % (area))
+    ellipse = cv2.fitEllipse(cnt);
+    #print(ellipse)
+    angle = ellipse[2]
+
 
     feature_dict = {'Solidity' : solidity,
                     'AspectRatio' : aspect_ratio,
                     'Perimeter' : perimeter,
                     'Area' : area,
+                    'Angle' : angle,
                     'Contours' : cnt }
+
+    #print('metric dict',feature_dict)
 
     return feature_dict
 
@@ -183,7 +200,7 @@ class DigitData(object):
         if len(s) == 785:
             return []
         else:
-            return s[1:5]
+            return s[1:6]
 
     def instance(self, index):
         """
@@ -197,12 +214,20 @@ class DigitData(object):
             if len(s) == 785:
                 idx = 1
             else:
-                idx = 5
+                idx = 6
             image = s[idx:].values.reshape(28,28)
         else:
             # test data
-            label = None
-            image = s.values.reshape(28,28)
+            label = []
+            if len(s) == 785:
+                idx = 1
+            elif len(s) == 784:
+                idx = 0
+            else:
+                idx = 5
+                label = s[0:idx]
+
+            image = s[idx:].values.reshape(28,28)
 
         return SampleDigit(image, label)
 
@@ -224,8 +249,12 @@ class DigitData(object):
 def main():
     """
     """
-    print('Load training data')
-    training_data = DigitData(TRAINING_FILE)
+    if not TEST_DATA:
+        print('Load training data')
+        training_data = DigitData(TRAINING_FILE)
+    else:
+        print('Load test data')
+        training_data = DigitData(TEST_FILE)
 
     #
     #   Translate images to upper left corner
@@ -237,15 +266,29 @@ def main():
 
         sample = training_data.instance(id)
 
+        if TEST_DATA:
+            metrics = sample[LABEL]
+        else:
+            metrics = None
+
         mdict = image_metrics(sample[IMAGE])
         metrics = [mdict['Solidity'],
                    mdict['AspectRatio'],
                    mdict['Perimeter'],
-                   mdict['Area']]
+                   mdict['Area'],
+                   mdict['Angle']]
 
         image = to_top_left(sample[IMAGE])
+
+        image_size = image.size
+
         image = image.astype('uint8')
-        attributes = np.append(sample[LABEL], metrics)
+
+        if not TEST_DATA:
+            attributes = np.append(sample[LABEL], metrics)
+        else:
+            attributes = np.append([], metrics)
+
         extended_attributes = np.append(attributes, image)
 
         if  d:
@@ -257,12 +300,28 @@ def main():
 
     #
     array = np.array(d)
-    num_attributes = 785 + len(metrics)
+
+    if TEST_DATA:
+        num_attributes = image_size + 1 + len(metrics)
+    else:
+        num_attributes = image_size + len(metrics)
+
+
     column_names = list(training_data.df.columns)
-    metrics_names = ['Solidity', 'AspectRatio', 'Perimeter', 'Area']
-    nlist = [column_names[0]]
-    nlist.extend(metrics_names)
-    nlist.extend(column_names[1:])
+    metrics_names = ['Solidity', 'AspectRatio', 'Perimeter', 'Area', 'Angle']
+
+    if TEST_DATA:
+        nlist = metrics_names
+        nlist.extend(column_names)
+        num_attributes = image_size + len(metrics)
+
+    else:
+        nlist = [column_names[0]]
+        nlist.extend(metrics_names)
+        nlist.extend(column_names[1:])
+        num_attributes = image_size + 1 + len(metrics_names)
+
+
     column_names = nlist
     new_data = array.reshape(array.size/num_attributes, num_attributes)
     df = pd.DataFrame(data=new_data, columns=column_names)
@@ -285,11 +344,21 @@ def main():
         #
         #  TO REDUCE IMAGE SIZE UNCOMMENT NEXT LINEß
         #
-        #image = resize_image(image, 0.6)
+        image = resize_image(image, 0.6)
         image = image.astype('uint8')
-        metrics = data.extra_features(id)
-        attributes = np.append(sample[LABEL], metrics)
-        attributes = np.append(attributes, image)
+
+        metrics = sample[LABEL] #data.extra_features(id)
+
+        if TEST_DATA:
+            metrics = sample[LABEL] #data.extra_features(id)
+            attributes = metrics
+        else:
+            metrics = data.extra_features(id)
+            attributes = np.append(sample[LABEL], metrics)
+
+        attributes = np.append(attributes,image)
+
+        image_size = image.size
 
         size = len(attributes)
 
@@ -304,9 +373,27 @@ def main():
     new_data = array.reshape(array.size/(size), size)
     df = pd.DataFrame(data=new_data, columns=data.df.columns[0:size])
 
-    df.to_csv(OUTPUT_DATA_FILE)
+    df.to_csv(OUTPUT_DATA_FILE, index=False)
     print('Samples: %d, attributes: %d' %(df.shape[0], df.shape[1]))
     print('Data saved to %s' % (OUTPUT_DATA_FILE))
 
+#
+#-------------------------------------------------------------------------------
+#
+
+def alt_main():
+        print('Load test data')
+        data = DigitData(TEST_FILE)
+
+        instance_count, attribute_count = data.df.shape
+        for id in range(10): #instance_count):
+
+            sample = data.instance(id)
+            plot_image(sample[IMAGE])
+
+
+
+
 if __name__ == '__main__':
+    #alt_main()
     main()
