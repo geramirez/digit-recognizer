@@ -25,6 +25,7 @@ import cv2
 print('OpenCV        version:', cv2.__version__)
 import time
 from collections import namedtuple
+from sklearn.preprocessing import StandardScaler
 
 #-------------------------------------------------------------------------------
 
@@ -243,18 +244,30 @@ class DigitData(object):
         plot_image(sample[IMAGE], title)
 
 
+def scale_features(df):
+    y = df['label']
+
+    X = df.drop('label', axis=1)
+    X = StandardScaler().fit_transform(X)
+
+    X.add(y)
+    return X
+
 #-------------------------------------------------------------------------------
 
 
-def main():
+def processs_image_data(infilename, reduce_size = False, is_test_data = False):
     """
     """
-    if not TEST_DATA:
+
+    if not is_test_data:
+        TEST_DATA=False
         print('Load training data')
-        training_data = DigitData(TRAINING_FILE)
     else:
+        TEST_DATA=True
         print('Load test data')
-        training_data = DigitData(TEST_FILE)
+
+    training_data = DigitData(infilename)
 
     #
     #   Translate images to upper left corner
@@ -342,10 +355,10 @@ def main():
         sample = data.instance(id)
         image = crop_image(sample[IMAGE], (0,xBound), (0,yBound))
         #
-        #  TO REDUCE IMAGE SIZE UNCOMMENT NEXT LINEß
-        #
-        image = resize_image(image, 0.6)
-        image = image.astype('uint8')
+        #  REDUCE IMAGE SIZE
+        if reduce_size:
+            image = resize_image(image, 0.6)
+            image = image.astype('uint8')
 
         metrics = sample[LABEL] #data.extra_features(id)
 
@@ -373,27 +386,31 @@ def main():
     new_data = array.reshape(array.size/(size), size)
     df = pd.DataFrame(data=new_data, columns=data.df.columns[0:size])
 
-    df.to_csv(OUTPUT_DATA_FILE, index=False)
-    print('Samples: %d, attributes: %d' %(df.shape[0], df.shape[1]))
-    print('Data saved to %s' % (OUTPUT_DATA_FILE))
+    return df
 
 #
 #-------------------------------------------------------------------------------
 #
 
-def alt_main():
-        print('Load test data')
-        data = DigitData(TEST_FILE)
 
-        instance_count, attribute_count = data.df.shape
-        for id in range(10): #instance_count):
+def main():
 
-            sample = data.instance(id)
-            plot_image(sample[IMAGE])
+    TEST_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'test_FS.csv')
+    TRAIN_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'train_FS.csv')
+
+    training_data = processs_image_data(TRAINING_FILE, reduce_size = False, is_test_data = False)
+
+    training_data.to_csv(TRAIN_OUTPUT_DATA_FILE, index=False)
+    print('Samples: %d, attributes: %d' %(training_data.shape[0], training_data.shape[1]))
+    print('Training Data saved to %s' % (TRAIN_OUTPUT_DATA_FILE))
 
 
+    test_data = processs_image_data(TEST_FILE, reduce_size = False, is_test_data = True)
+
+    test_data.to_csv(TEST_OUTPUT_DATA_FILE, index=False)
+    print('Samples: %d, attributes: %d' %(test_data.shape[0], test_data.shape[1]))
+    print('Test Data saved to %s' % (TEST_OUTPUT_DATA_FILE))
 
 
 if __name__ == '__main__':
-    #alt_main()
     main()
