@@ -28,7 +28,7 @@ from collections import namedtuple
 
 #-------------------------------------------------------------------------------
 
-TEST_DATA=1
+TEST_DATA=None
 #
 #
 INPUT_DATA_PATH=os.path.expanduser('~/Desktop/DataScience/UW-DataScience-450/kaggle_comp')
