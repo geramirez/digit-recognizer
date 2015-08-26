@@ -64,16 +64,6 @@ def plot_image(image, title=''):
     plt.title(title)
     plt.matshow(image)
 
-def threshold_image(image):
-    """
-    """
-    image = image.astype('uint8')
-
-    thresh_image = cv2.adaptiveThreshold(image, 255,
-                            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                            cv2.THRESH_BINARY,7,0)
-
-    return thresh_image
 
 def to_top_left(sample_image):
     """
@@ -243,16 +233,6 @@ class DigitData(object):
 
         plot_image(sample[IMAGE], title)
 
-
-def scale_features(df):
-    y = df['label']
-
-    X = df.drop('label', axis=1)
-    X = StandardScaler().fit_transform(X)
-
-    X.add(y)
-    return X
-
 #-------------------------------------------------------------------------------
 
 
@@ -360,10 +340,10 @@ def processs_image_data(infilename, reduce_size = False, is_test_data = False):
             image = resize_image(image, 0.6)
             image = image.astype('uint8')
 
-        metrics = sample[LABEL] #data.extra_features(id)
+        metrics = sample[LABEL]
 
         if TEST_DATA:
-            metrics = sample[LABEL] #data.extra_features(id)
+            metrics = sample[LABEL]
             attributes = metrics
         else:
             metrics = data.extra_features(id)
@@ -392,25 +372,55 @@ def processs_image_data(infilename, reduce_size = False, is_test_data = False):
 #-------------------------------------------------------------------------------
 #
 
-
 def main():
 
     TEST_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'test_FS.csv')
     TRAIN_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'train_FS.csv')
 
-    training_data = processs_image_data(TRAINING_FILE, reduce_size = False, is_test_data = False)
+    #
+    #  Process Training Data
+    #
 
-    training_data.to_csv(TRAIN_OUTPUT_DATA_FILE, index=False)
-    print('Samples: %d, attributes: %d' %(training_data.shape[0], training_data.shape[1]))
+    training_data = processs_image_data(TRAINING_FILE, reduce_size = False, is_test_data = False)
+    column_names = list(training_data.columns)
+
+    #
+    #  Scale (z-score) features, save scale tranform and to use with test data
+    #
+
+    y = training_data['label']
+    X = training_data.drop('label', axis=1)
+    scalar = StandardScaler().fit(X)
+    X = scalar.fit_transform(X)
+    scaled_data = np.column_stack((y, X))
+    scaled_training_data = pd.DataFrame(data=scaled_data, columns=column_names)
+
+
+    scaled_training_data.to_csv(TRAIN_OUTPUT_DATA_FILE, index=False)
+    print('Samples: %d, attributes: %d' %(scaled_training_data.shape[0],
+        scaled_training_data.shape[1]))
     print('Training Data saved to %s' % (TRAIN_OUTPUT_DATA_FILE))
 
+    #
+    #   Process Test Data
+    #
 
     test_data = processs_image_data(TEST_FILE, reduce_size = False, is_test_data = True)
+    column_names = list(test_data.columns)
 
-    test_data.to_csv(TEST_OUTPUT_DATA_FILE, index=False)
-    print('Samples: %d, attributes: %d' %(test_data.shape[0], test_data.shape[1]))
+    #
+    #  Apply scaling transform
+    #
+
+    scaled_data = scalar.fit_transform(test_data)
+    scaled_test_data = pd.DataFrame(data=scaled_data, columns=column_names)
+
+    scaled_test_data.to_csv(TEST_OUTPUT_DATA_FILE, index=False)
+    print('Samples: %d, attributes: %d' %(scaled_test_data.shape[0],
+        scaled_test_data.shape[1]))
     print('Test Data saved to %s' % (TEST_OUTPUT_DATA_FILE))
 
+#-------------------------------------------------------------------------------
 
 if __name__ == '__main__':
     main()
