@@ -12,7 +12,7 @@ from __future__ import division
 import sys
 import os.path
 import numpy as np
-import scipy.stats as stats
+#import scipy.stats as stats
 print('Numpy         version:', np.__version__)
 import matplotlib
 print('Matplotlib    version:', matplotlib.__version__)
@@ -26,25 +26,20 @@ print('OpenCV        version:', cv2.__version__)
 import time
 from collections import namedtuple
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 #-------------------------------------------------------------------------------
 
-TEST_DATA=None
+REDUCE_SIZE=False
 #
 #
 INPUT_DATA_PATH=os.path.expanduser('~/Desktop/DataScience/UW-DataScience-450/kaggle_comp')
-OUTPUT_DATA_PATH=os.path.expanduser('~/Desktop/DataScience/UW-DataScience-450/capstone/data-prep')
+OUTPUT_DATA_PATH=os.path.expanduser('~/Desktop/DataScience/UW-DataScience-450/capstone/datasets')
 
 #
 #
 TRAINING_FILE=os.path.join(INPUT_DATA_PATH, 'train.csv')
 TEST_FILE=os.path.join(INPUT_DATA_PATH, 'test.csv')
-
-if TEST_DATA:
-    OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'test_RS.csv')
-else:
-    OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'train_RS.csv')
-
 
 #-------------------------------------------------------------------------------
 
@@ -233,6 +228,17 @@ class DigitData(object):
 
         plot_image(sample[IMAGE], title)
 
+
+def binarize_label(series, label):
+    bin_list = []
+
+    for i in series['label']:
+        if i == label:
+            bin_list.append(1)
+        else:
+            bin_list.append(0)
+    return bin_list
+
 #-------------------------------------------------------------------------------
 
 
@@ -289,7 +295,8 @@ def processs_image_data(infilename, reduce_size = False, is_test_data = False):
         else:
             d = list(extended_attributes)
 
-        print('Processing instance: %d' % (id))
+
+       # print('Processing instance: %d' % (id))
 
     #
     array = np.array(d)
@@ -360,7 +367,7 @@ def processs_image_data(infilename, reduce_size = False, is_test_data = False):
         else:
             d = list(attributes)
 
-        print('Processing instance: %d' % (id))
+       # print('Processing instance: %d' % (id))
     #
     array = np.array(d)
     new_data = array.reshape(array.size/(size), size)
@@ -374,14 +381,19 @@ def processs_image_data(infilename, reduce_size = False, is_test_data = False):
 
 def main():
 
-    TEST_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'test_FS.csv')
-    TRAIN_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'train_FS.csv')
+
+    if REDUCE_SIZE:
+        TEST_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'test_RS.csv')
+        TRAIN_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'train_RS.csv')
+    else:
+        TEST_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'test_FS.csv')
+        TRAIN_OUTPUT_DATA_FILE=os.path.join(OUTPUT_DATA_PATH, 'train_FS.csv')
 
     #
     #  Process Training Data
     #
 
-    training_data = processs_image_data(TRAINING_FILE, reduce_size = False, is_test_data = False)
+    training_data = processs_image_data(TRAINING_FILE, reduce_size = REDUCE_SIZE, is_test_data = False)
     column_names = list(training_data.columns)
 
     #
@@ -392,8 +404,10 @@ def main():
     X = training_data.drop('label', axis=1)
     scalar = StandardScaler().fit(X)
     X = scalar.fit_transform(X)
+
     scaled_data = np.column_stack((y, X))
     scaled_training_data = pd.DataFrame(data=scaled_data, columns=column_names)
+
 
 
     scaled_training_data.to_csv(TRAIN_OUTPUT_DATA_FILE, index=False)
@@ -405,7 +419,7 @@ def main():
     #   Process Test Data
     #
 
-    test_data = processs_image_data(TEST_FILE, reduce_size = False, is_test_data = True)
+    test_data = processs_image_data(TEST_FILE, reduce_size = REDUCE_SIZE, is_test_data = True)
     column_names = list(test_data.columns)
 
     #
