@@ -1,0 +1,6 @@
+*.txt
+*.pyc
+*.csv
+*.RData
+*.RHistory
+.ipynb_checkpoints/
