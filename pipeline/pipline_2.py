@@ -19,9 +19,11 @@ def open_data(file_location):
 def separate_labels(data):
     """ Splits the label columns from the data """
     # Fetch a pixel column mask
-    pixel_col_msk = data.columns.str.contains('pixel')
+    pixel_col_msk = data.columns.str.contains(
+        'pixel|Solidity|AspectRatio|Perimeter|Area|Angle'
+    )
     # Get the label column
-    label_column = data.label
+    label_column = data.loc[:,data.columns.str.contains('digit')]
     # Get the pixel columns
     data = data.loc[:, pixel_col_msk]
     return label_column, data
@@ -113,29 +115,50 @@ def get_optimize_result(training_data, validation_data, important_cols_result):
         clf.fit(training_data.iloc[:, cols], training_data_label)
         predictions = clf.predict(validation_data.iloc[:, cols])
         new_score = accuracy_score(validation_data_label, predictions)
-        print(new_score)
         if new_score < optimal_result['score']:
             optimal_result['score'] = new_score
             optimal_result['number_of_cols'] = number_of_cols
-            print(optimal_result)
         if last_score > new_score:
             decreases += 1
-            if decreases > 5:
+            if decreases > 3:
                 break
         last_score = new_score
         number_of_cols += 5
     cols = important_cols_result.index[0: number_of_cols]
-    print(optimal_result)
     export_optimal_result(training_data.iloc[:, cols].columns)
 
+
 def export_optimal_result(data):
-    with open('columns.csv', 'w') as csvfile:
+    with open('columns_individuals.csv', 'a') as csvfile:
         result_writer = csv.writer(csvfile)
         result_writer.writerow(data)
 
+
+def digit_train(data_folder):
+    """ Loop through digit data picking columns for each digit """
+    for i in range(10):
+        data = open_data(data_folder + str(i) + '.csv')
+        logging.info('Data Loaded for #%s', i)
+        training_data, testing_data, validation_data = split_data(data)
+        logging.info('Data Split for #%s', i)
+        results = extract_features(
+            training_data=training_data,
+            testing_data=testing_data,
+            classifier=DTC,
+            number_of_cols=20,
+            number_of_models=500
+        )
+        logging.info('Data extracted')
+        important_columns = process_results(results)
+        logging.info('Data import columns')
+        get_optimize_result(training_data, validation_data, important_columns, i)
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    data = open_data('../newdata/train_FS.csv')
+    digit_train('../newdata/Train_RS_scaled/trainRS-digit')
+    """
+
+    data = open_data('../data/train.csv')
     logging.info('Data Loaded')
     data = prep_data(data)
     logging.info('Data Preped')
@@ -148,4 +171,4 @@ if __name__ == '__main__':
     important_columns = process_results(results)
     logging.info('Data import columns')
     get_optimize_result(training_data, validation_data, important_columns)
-
+    """
